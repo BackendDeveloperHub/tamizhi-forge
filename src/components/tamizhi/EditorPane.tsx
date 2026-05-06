@@ -75,7 +75,7 @@ function defineTamizhi(monaco: Monaco) {
   });
 
   monaco.languages.registerCompletionItemProvider("tamizhi", {
-    provideCompletionItems: (model, position) => {
+    provideCompletionItems: (model: any, position: any) => {
       const word = model.getWordUntilPosition(position);
       const range = {
         startLineNumber: position.lineNumber,
