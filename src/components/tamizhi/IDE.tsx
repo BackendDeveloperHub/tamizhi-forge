@@ -165,10 +165,28 @@ export function IDE() {
   };
 
   const handleSave = () => {
+    // Sync current open files into fileContents and persist everything.
+    openFiles.forEach((f) => {
+      fileContents[f.id] = f.content;
+    });
+    const payload: Persisted = {
+      fileContents: { ...fileContents },
+      openFiles,
+      activeId,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      setLogs((l) => [
+        ...l,
+        { type: "error", text: `✗ Save failed: ${(err as Error).message}` },
+      ]);
+      return;
+    }
     setLogs((l) => [
       ...l,
       { type: "cmd", text: `save ${openFiles.find((f) => f.id === activeId)?.name}` },
-      { type: "success", text: "✓ File saved" },
+      { type: "success", text: `✓ Saved ${openFiles.length} file(s) to local storage` },
     ]);
   };
 
