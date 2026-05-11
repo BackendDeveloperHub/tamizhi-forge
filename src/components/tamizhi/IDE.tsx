@@ -66,18 +66,45 @@ entry:
   ret i32 0
 }`;
 
+const STORAGE_KEY = "tamizhi-ide-state-v1";
+
+type Persisted = {
+  fileContents: Record<string, string>;
+  openFiles: OpenFile[];
+  activeId: string;
+};
+
+function loadPersisted(): Persisted | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as Persisted;
+  } catch {
+    return null;
+  }
+}
+
+const persisted = loadPersisted();
+if (persisted?.fileContents) {
+  Object.assign(fileContents, persisted.fileContents);
+}
+
 export function IDE() {
   const [tree] = useState<FileNode[]>(initialTree);
-  const [openFiles, setOpenFiles] = useState<OpenFile[]>([
-    { id: "main", name: "main.tz", content: DEFAULT_CODE },
-  ]);
-  const [activeId, setActiveId] = useState("main");
+  const [openFiles, setOpenFiles] = useState<OpenFile[]>(
+    persisted?.openFiles ?? [{ id: "main", name: "main.tz", content: DEFAULT_CODE }],
+  );
+  const [activeId, setActiveId] = useState(persisted?.activeId ?? "main");
   const [logs, setLogs] = useState<LogLine[]>([
     { type: "success", text: "✓ Tamizhi compiler initialized" },
     { type: "info", text: "  LLVM 17.0.6 backend loaded" },
     { type: "info", text: "  Target: x86_64-unknown-linux-gnu" },
     { type: "cmd", text: "tamizhi --version" },
     { type: "info", text: "tamizhi 0.1.0 (linux-native)" },
+    ...(persisted
+      ? [{ type: "info" as const, text: "→ Restored project from local storage" }]
+      : []),
   ]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<"idle" | "running" | "ok" | "error">("ok");
@@ -138,10 +165,28 @@ export function IDE() {
   };
 
   const handleSave = () => {
+    // Sync current open files into fileContents and persist everything.
+    openFiles.forEach((f) => {
+      fileContents[f.id] = f.content;
+    });
+    const payload: Persisted = {
+      fileContents: { ...fileContents },
+      openFiles,
+      activeId,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      setLogs((l) => [
+        ...l,
+        { type: "error", text: `✗ Save failed: ${(err as Error).message}` },
+      ]);
+      return;
+    }
     setLogs((l) => [
       ...l,
       { type: "cmd", text: `save ${openFiles.find((f) => f.id === activeId)?.name}` },
-      { type: "success", text: "✓ File saved" },
+      { type: "success", text: `✓ Saved ${openFiles.length} file(s) to local storage` },
     ]);
   };
 
